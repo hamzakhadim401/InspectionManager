@@ -353,8 +353,8 @@ elif page == "Inspection Inventory":
             elif not po_no or not rfi_no or not insp_no:
                 st.warning("⚠️ Please fill in Inspection No, PO Number, and RFI Number.")
             else:
-                po_check = supabase.table("inspections").select("po_number").eq("po_number", po_no).execute()
-                rfi_check = supabase.table("inspections").select("rfi_number").eq("rfi_number", rfi_no).execute()
+                po_check = supabase.table("Inspections").select("po_number").eq("po_number", po_no).execute()
+                rfi_check = supabase.table("Inspections").select("rfi_number").eq("rfi_number", rfi_no).execute()
                 
                 if len(po_check.data) > 0:
                     st.error(f"🚨 FLAG: The PO Number '{po_no}' already exists! Save blocked.")
@@ -362,7 +362,7 @@ elif page == "Inspection Inventory":
                     st.error(f"🚨 FLAG: The RFI Number '{rfi_no}' already exists! Save blocked.")
                 else:
                     inspector_id = inspector_dict[selected_inspector]
-                    existing_jobs = supabase.table("inspections").select("*").eq("inspector_id", inspector_id).execute()
+                    existing_jobs = supabase.table("Inspections").select("*").eq("inspector_id", inspector_id).execute()
                     
                     conflict_msg = None
                     for job in existing_jobs.data:
@@ -376,8 +376,8 @@ elif page == "Inspection Inventory":
                     total_amount = revenue + profit
 
                     try:
-                        supabase.table("inspections").insert({
-                            "inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
+                        supabase.table("Inspections").insert({
+                            "nspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
                             "inspector_id": inspector_id, "location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
                             "client_name": client, "vendor_name": vendor, "status": "Scheduled",
@@ -393,7 +393,7 @@ elif page == "Inspection Inventory":
     st.divider()
     
     try:
-        inv_res = supabase.table("inspections").select("*").execute()
+        inv_res = supabase.table("Inspections").select("*").execute()
         
         if inv_res.data:
             df = pd.DataFrame(inv_res.data)
@@ -459,7 +459,7 @@ elif page == "Inspection Inventory":
                 for index, row in edited_df.iterrows():
                     if df.loc[index, 'status'] != row['status']:
                         try:
-                            supabase.table("inspections").update({"status": row['status']}).eq("id", row['id']).execute()
+                            supabase.table("Inspections").update({"status": row['status']}).eq("id", row['id']).execute()
                             changes_made = True
                         except Exception as e:
                             st.error(f"❌ Error updating {row['inspection_no']}: {e}")
@@ -481,7 +481,7 @@ elif page == "Inspection Inventory":
                     if delete_btn:
                         delete_id = delete_options[selected_to_delete]
                         try:
-                            supabase.table("inspections").delete().eq("id", delete_id).execute()
+                            supabase.table("Inspections").delete().eq("id", delete_id).execute()
                             st.session_state['temp_success'] = f"✅ Successfully deleted {selected_to_delete.split(' - ')[0]}!"
                             st.rerun()
                         except Exception as e:
