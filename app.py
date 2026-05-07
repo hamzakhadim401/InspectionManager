@@ -293,7 +293,6 @@ elif page == "Clients & Vendors":
 
 
 
-
 elif page == "Inspection Inventory":
     st.title("📋 Inspection Inventory")
     
@@ -376,12 +375,13 @@ elif page == "Inspection Inventory":
                     total_amount = revenue + profit
 
                     try:
+                        # Fixed the capitalization for Location to match Revenue, Profit, and Total
                         supabase.table("Inspections").insert({
                             "inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
-                            "inspector_id": inspector_id, "location": location,
+                            "inspector_id": inspector_id, "Location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
                             "client_name": client, "vendor_name": vendor, "status": "Scheduled",
-                            "Revenue": revenue, "Profit": profit, "Total": total_amount # NEW FINANCIALS
+                            "Revenue": revenue, "Profit": profit, "Total": total_amount 
                         }).execute()
                         st.session_state['temp_success'] = "✅ Inspection scheduled successfully!"
                         if conflict_msg: st.session_state['temp_warning'] = conflict_msg
@@ -398,13 +398,13 @@ elif page == "Inspection Inventory":
         if inv_res.data:
             df = pd.DataFrame(inv_res.data)
             
-            # --- NEW: GRAND TOTALS DISPLAY ---
+            # --- NEW: GRAND TOTALS DISPLAY (Bulletproofed) ---
             st.subheader("📊 Financial Summary")
             
-            # Add them up (if the columns exist yet)
-            tot_rev = df['Revenue'].sum() if 'Revenue' in df.columns else 0
-            tot_prof = df['Profit'].sum() if 'Profit' in df.columns else 0
-            tot_tot = df['Total'].sum() if 'Total' in df.columns else 0
+            # Safely convert to numeric, replacing old missing database entries (NaN) with 0 before summing
+            tot_rev = pd.to_numeric(df['Revenue'], errors='coerce').fillna(0).sum() if 'Revenue' in df.columns else 0
+            tot_prof = pd.to_numeric(df['Profit'], errors='coerce').fillna(0).sum() if 'Profit' in df.columns else 0
+            tot_tot = pd.to_numeric(df['Total'], errors='coerce').fillna(0).sum() if 'Total' in df.columns else 0
             
             m1, m2, m3 = st.columns(3)
             m1.metric("Total Inspector Pay (Revenue)", f"{tot_rev:,.0f}")
@@ -440,6 +440,10 @@ elif page == "Inspection Inventory":
             # --- LIVE STATUS EDITING ---
             st.caption("💡 *Tip: Double-click a cell in the 'status' column to change it.*")
             
+            # Create a dynamic list of columns to disable so the app doesn't crash if a column is missing
+            all_possible_cols = ["id", "inspection_no", "po_number", "rfi_number", "inspector_id", "Location", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"]
+            cols_to_disable = [col for col in all_possible_cols if col in df.columns]
+
             edited_df = st.data_editor(
                 df,
                 column_config={
@@ -447,8 +451,7 @@ elif page == "Inspection Inventory":
                         "status", options=["Scheduled", "In Progress", "Report Submitted", "Invoiced", "Closed"], required=True
                     )
                 },
-                # Block everything except status from being edited
-                disabled=["id", "inspection_no", "po_number", "rfi_number", "inspector_id", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"],
+                disabled=cols_to_disable,
                 use_container_width=True,
                 hide_index=True,
                 key="inventory_editor"
