@@ -119,7 +119,7 @@ if page == "Dashboard":
                 
                 if not upcoming.empty:
                     # Show a mini-table of just the crucial info
-                    mini_table = upcoming[['inspection_no', 'start_date', 'client_name']].sort_values(by='start_date')
+                    mini_table = upcoming[['Inspection_no', 'start_date', 'client_name']].sort_values(by='start_date')
                     st.dataframe(mini_table, hide_index=True, use_container_width=True)
                 else:
                     st.info("No inspections scheduled for the next 7 days.")
@@ -368,7 +368,7 @@ elif page == "Inspection Inventory":
                         job_start = pd.to_datetime(job['start_date']).date()
                         job_end = pd.to_datetime(job['end_date']).date()
                         if start_date <= job_end and end_date >= job_start:
-                            conflict_msg = f"⚠️ DOUBLE BOOKING NOTE: {selected_inspector.split(' ')[0]} is also assigned to Inspection {job['inspection_no']} during these dates."
+                            conflict_msg = f"⚠️ DOUBLE BOOKING NOTE: {selected_inspector.split(' ')[0]} is also assigned to Inspection {job['Inspection_no']} during these dates."
                             break
                     
                     # Calculate Total Automatically
@@ -377,7 +377,7 @@ elif page == "Inspection Inventory":
                     try:
                         # Fixed the capitalization for Location to match Revenue, Profit, and Total
                         supabase.table("Inspections").insert({
-                            "inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
+                            "Inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
                             "inspector_id": inspector_id, "Location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
                             "client_name": client, "vendor_name": vendor, "status": "Scheduled",
@@ -424,7 +424,7 @@ elif page == "Inspection Inventory":
             if search_query:
                 mask = df['po_number'].astype(str).str.contains(search_query, case=False) | \
                        df['rfi_number'].astype(str).str.contains(search_query, case=False) | \
-                       df['inspection_no'].astype(str).str.contains(search_query, case=False)
+                       df['Inspection_no'].astype(str).str.contains(search_query, case=False)
                 df = df[mask]
                 
             if status_filter:
@@ -441,7 +441,7 @@ elif page == "Inspection Inventory":
             st.caption("💡 *Tip: Double-click a cell in the 'status' column to change it.*")
             
             # Create a dynamic list of columns to disable so the app doesn't crash if a column is missing
-            all_possible_cols = ["id", "inspection_no", "po_number", "rfi_number", "inspector_id", "Location", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"]
+            all_possible_cols = ["id", "Inspection_no", "po_number", "rfi_number", "inspector_id", "Location", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"]
             cols_to_disable = [col for col in all_possible_cols if col in df.columns]
 
             edited_df = st.data_editor(
@@ -465,7 +465,7 @@ elif page == "Inspection Inventory":
                             supabase.table("Inspections").update({"status": row['status']}).eq("id", row['id']).execute()
                             changes_made = True
                         except Exception as e:
-                            st.error(f"❌ Error updating {row['inspection_no']}: {e}")
+                            st.error(f"❌ Error updating {row['Inspection_no']}: {e}")
                 
                 if changes_made:
                     st.session_state['temp_success'] = "✅ Database updated successfully!"
@@ -475,7 +475,7 @@ elif page == "Inspection Inventory":
             st.divider()
             with st.expander("🗑️ Danger Zone: Delete an Inspection"):
                 st.warning("Warning: Deleting an inspection is permanent and cannot be undone.")
-                delete_options = {f"{row['inspection_no']} - {row['client_name']} (PO: {row['po_number']})": row['id'] for row in inv_res.data}
+                delete_options = {f"{row['Inspection_no']} - {row['client_name']} (PO: {row['po_number']})": row['id'] for row in inv_res.data}
                 
                 with st.form("delete_inspection_form"):
                     selected_to_delete = st.selectbox("Select Inspection to Permanently Delete:", options=list(delete_options.keys()))
