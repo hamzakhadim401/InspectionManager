@@ -152,7 +152,7 @@ elif page == "Inspectors":
         with col2:
             last_name = st.text_input("Last Name")
             inspector_class = st.selectbox("Inspector Class", ["Mechanical", "Electrical", "Both"])
-            
+            location = st.text_input("Location") # NEW LOCATION FIELD
         submitted = st.form_submit_button("Save Inspector")
         
         # What happens when we click the button?
@@ -172,7 +172,8 @@ elif page == "Inspectors":
                             "name": first_name,
                             "surname": last_name,
                             "email": email,
-                            "class": inspector_class
+                            "class": inspector_class,
+                            "Location": location,
                         }).execute()
                         st.success(f"✅ Successfully added {first_name} {last_name}!")
                         st.rerun() # Automatically refreshes the page
@@ -304,7 +305,6 @@ elif page == "Inspection Inventory":
         st.warning(st.session_state['temp_warning'])
         del st.session_state['temp_warning']
 
-    # Fetch inspectors for dropdown
     # Fetch data for dropdowns
     try:
         # Get Inspectors
@@ -339,6 +339,16 @@ elif page == "Inspection Inventory":
         
         submit_insp = st.form_submit_button("Schedule Inspection", type="primary")
 
+        st.markdown("**💰 Financial Details**")
+        fin1, fin2 = st.columns(2)
+        with fin1:
+            revenue = st.number_input("Revenue (Inspector's Pay)", min_value=0, step=1)
+        with fin2:
+            profit = st.number_input("Profit (Company's Cut)", min_value=0, step=1)
+
+        submit_insp = st.form_submit_button("Schedule Inspection", type="primary")
+
+
         if submit_insp:
             if not inspector_dict:
                 st.error("⚠️ Please add an inspector first!")
@@ -365,13 +375,16 @@ elif page == "Inspection Inventory":
                         if start_date <= job_end and end_date >= job_start:
                             conflict_msg = f"⚠️ DOUBLE BOOKING NOTE: {selected_inspector.split(' ')[0]} is also assigned to Inspection {job['Inspection_no']} during these dates."
                             break
-                    
+                    # Calculate Total Automatically
+                    total_amount = revenue + profit
+
                     try:
                         supabase.table("Inspections").insert({
                             "Inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
                             "inspector_id": inspector_id, "location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
-                            "client_name": client, "vendor_name": vendor, "status": "Scheduled" 
+                            "client_name": client, "vendor_name": vendor, "status": "Scheduled",
+                            "Revenue": revenue, "Profit": profit, "Total": total_amount
                         }).execute()
                         st.session_state['temp_success'] = "✅ Inspection scheduled successfully!"
                         if conflict_msg: st.session_state['temp_warning'] = conflict_msg
@@ -389,6 +402,24 @@ elif page == "Inspection Inventory":
         if inv_res.data:
             df = pd.DataFrame(inv_res.data)
             
+            # --- NEW: GRAND TOTALS DISPLAY ---
+            st.subheader("📊 Financial Summary")
+            
+            # Add them up (if the columns exist yet)
+            tot_rev = df['Revenue'].sum() if 'Revenue' in df.columns else 0
+            tot_prof = df['Profit'].sum() if 'Profit' in df.columns else 0
+            tot_tot = df['Total'].sum() if 'Total' in df.columns else 0
+            
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Inspector Pay (Revenue)", f"{tot_rev:,.0f}")
+            m2.metric("Total Company Cut (Profit)", f"{tot_prof:,.0f}")
+            m3.metric("Grand Total Amount", f"{tot_tot:,.0f}")
+            
+            st.divider()
+            st.subheader("📋 Central Inventory Log")
+
+
+
             # --- UPGRADE 1: SEARCH & FILTERING ---
             f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
             with f_col1:
@@ -427,7 +458,7 @@ elif page == "Inspection Inventory":
                         required=True,
                     )
                 },
-                disabled=["id", "Inspection_no", "po_number", "rfi_number", "inspector_id", "location", "start_date", "end_date", "client_name", "vendor_name"],
+                disabled=["id", "Inspection_no", "po_number", "rfi_number", "inspector_id", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"],
                 use_container_width=True,
                 hide_index=True,
                 key="inventory_editor"
