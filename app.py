@@ -119,7 +119,7 @@ if page == "Dashboard":
                 
                 if not upcoming.empty:
                     # Show a mini-table of just the crucial info
-                    mini_table = upcoming[['Inspection_no', 'start_date', 'client_name']].sort_values(by='start_date')
+                    mini_table = upcoming[['inspection_no', 'start_date', 'client_name']].sort_values(by='start_date')
                     st.dataframe(mini_table, hide_index=True, use_container_width=True)
                 else:
                     st.info("No inspections scheduled for the next 7 days.")
@@ -377,7 +377,7 @@ elif page == "Inspection Inventory":
 
                     try:
                         supabase.table("Inspections").insert({
-                            "nspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
+                            "inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
                             "inspector_id": inspector_id, "location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
                             "client_name": client, "vendor_name": vendor, "status": "Scheduled",
