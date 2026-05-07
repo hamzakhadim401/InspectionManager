@@ -307,12 +307,10 @@ elif page == "Inspection Inventory":
 
     # Fetch data for dropdowns
     try:
-        # Get Inspectors
         inspectors_res = supabase.table("Inspectors").select("*").execute()
         inspectors_list = inspectors_res.data
         inspector_dict = {f"{ins['name']} {ins['surname']} ({ins['class']})": ins['id'] for ins in inspectors_list} if inspectors_list else {}
         
-        # Get Clients & Vendors
         cv_res = supabase.table("clients_vendors").select("*").execute()
         cv_data = cv_res.data if cv_res.data else []
         client_names = [item['name'] for item in cv_data if item['type'] == 'Client']
@@ -322,7 +320,7 @@ elif page == "Inspection Inventory":
 
     # --- SECTION 1: SMART SCHEDULING ---
     st.subheader("➕ Schedule New Inspection")
-    with st.form("add_Inspection_form", clear_on_submit=True):
+    with st.form("add_inspection_form", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
         with col1:
             insp_no = st.text_input("Inspection No. (e.g., INSP-001)")
@@ -337,8 +335,7 @@ elif page == "Inspection Inventory":
             end_date = st.date_input("End Date")
             selected_inspector = st.selectbox("Assign Inspector", options=list(inspector_dict.keys()) if inspector_dict else ["No inspectors available"])
         
-        submit_insp = st.form_submit_button("Schedule Inspection", type="primary")
-
+        # --- NEW FINANCIALS SECTION ---
         st.markdown("**💰 Financial Details**")
         fin1, fin2 = st.columns(2)
         with fin1:
@@ -348,7 +345,6 @@ elif page == "Inspection Inventory":
 
         submit_insp = st.form_submit_button("Schedule Inspection", type="primary")
 
-
         if submit_insp:
             if not inspector_dict:
                 st.error("⚠️ Please add an inspector first!")
@@ -357,8 +353,8 @@ elif page == "Inspection Inventory":
             elif not po_no or not rfi_no or not insp_no:
                 st.warning("⚠️ Please fill in Inspection No, PO Number, and RFI Number.")
             else:
-                po_check = supabase.table("Inspections").select("po_number").eq("po_number", po_no).execute()
-                rfi_check = supabase.table("Inspections").select("rfi_number").eq("rfi_number", rfi_no).execute()
+                po_check = supabase.table("inspections").select("po_number").eq("po_number", po_no).execute()
+                rfi_check = supabase.table("inspections").select("rfi_number").eq("rfi_number", rfi_no).execute()
                 
                 if len(po_check.data) > 0:
                     st.error(f"🚨 FLAG: The PO Number '{po_no}' already exists! Save blocked.")
@@ -366,25 +362,26 @@ elif page == "Inspection Inventory":
                     st.error(f"🚨 FLAG: The RFI Number '{rfi_no}' already exists! Save blocked.")
                 else:
                     inspector_id = inspector_dict[selected_inspector]
-                    existing_jobs = supabase.table("Inspections").select("*").eq("inspector_id", inspector_id).execute()
+                    existing_jobs = supabase.table("inspections").select("*").eq("inspector_id", inspector_id).execute()
                     
                     conflict_msg = None
                     for job in existing_jobs.data:
                         job_start = pd.to_datetime(job['start_date']).date()
                         job_end = pd.to_datetime(job['end_date']).date()
                         if start_date <= job_end and end_date >= job_start:
-                            conflict_msg = f"⚠️ DOUBLE BOOKING NOTE: {selected_inspector.split(' ')[0]} is also assigned to Inspection {job['Inspection_no']} during these dates."
+                            conflict_msg = f"⚠️ DOUBLE BOOKING NOTE: {selected_inspector.split(' ')[0]} is also assigned to Inspection {job['inspection_no']} during these dates."
                             break
+                    
                     # Calculate Total Automatically
                     total_amount = revenue + profit
 
                     try:
-                        supabase.table("Inspections").insert({
-                            "Inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
+                        supabase.table("inspections").insert({
+                            "inspection_no": insp_no, "po_number": po_no, "rfi_number": rfi_no,
                             "inspector_id": inspector_id, "location": location,
                             "start_date": str(start_date), "end_date": str(end_date),
                             "client_name": client, "vendor_name": vendor, "status": "Scheduled",
-                            "Revenue": revenue, "Profit": profit, "Total": total_amount
+                            "Revenue": revenue, "Profit": profit, "Total": total_amount # NEW FINANCIALS
                         }).execute()
                         st.session_state['temp_success'] = "✅ Inspection scheduled successfully!"
                         if conflict_msg: st.session_state['temp_warning'] = conflict_msg
@@ -394,10 +391,9 @@ elif page == "Inspection Inventory":
 
     # --- SECTION 2: THE PRO INVENTORY DASHBOARD ---
     st.divider()
-    st.subheader("📊 Central Inventory Log")
     
     try:
-        inv_res = supabase.table("Inspections").select("*").execute()
+        inv_res = supabase.table("inspections").select("*").execute()
         
         if inv_res.data:
             df = pd.DataFrame(inv_res.data)
@@ -418,47 +414,41 @@ elif page == "Inspection Inventory":
             st.divider()
             st.subheader("📋 Central Inventory Log")
 
-
-
-            # --- UPGRADE 1: SEARCH & FILTERING ---
+            # --- SEARCH & FILTERING ---
             f_col1, f_col2, f_col3 = st.columns([2, 2, 1])
             with f_col1:
                 search_query = st.text_input("🔍 Search by PO, RFI, or Insp No.")
             with f_col2:
                 status_filter = st.multiselect("Filter by Status", ["Scheduled", "In Progress", "Report Submitted", "Invoiced", "Closed"])
             
-            # Apply Filters dynamically
             if search_query:
                 mask = df['po_number'].astype(str).str.contains(search_query, case=False) | \
                        df['rfi_number'].astype(str).str.contains(search_query, case=False) | \
-                       df['Inspection_no'].astype(str).str.contains(search_query, case=False)
+                       df['inspection_no'].astype(str).str.contains(search_query, case=False)
                 df = df[mask]
                 
             if status_filter:
                 df = df[df['status'].isin(status_filter)]
 
-            # --- UPGRADE 2: EXPORT TO EXCEL/CSV ---
+            # --- EXPORT TO EXCEL/CSV ---
             with f_col3:
-                st.write("") # Spacing
-                st.write("") # Spacing
+                st.write("") 
+                st.write("") 
                 csv_data = df.to_csv(index=False).encode('utf-8')
-                st.download_button(label="📥 Download Data", data=csv_data, file_name='Inspections_data.csv', mime='text/csv')
+                st.download_button(label="📥 Download Data", data=csv_data, file_name='inspections_data.csv', mime='text/csv')
 
-            # --- UPGRADE 3: LIVE STATUS EDITING ---
-            st.caption("💡 *Tip: Double-click a cell in the 'status' column to change it. Then click the save button below.*")
+            # --- LIVE STATUS EDITING ---
+            st.caption("💡 *Tip: Double-click a cell in the 'status' column to change it.*")
             
             edited_df = st.data_editor(
                 df,
                 column_config={
                     "status": st.column_config.SelectboxColumn(
-                        "status",
-                        help="Update the job status",
-                        width="medium",
-                        options=["Scheduled", "In Progress", "Report Submitted", "Invoiced", "Closed"],
-                        required=True,
+                        "status", options=["Scheduled", "In Progress", "Report Submitted", "Invoiced", "Closed"], required=True
                     )
                 },
-                disabled=["id", "Inspection_no", "po_number", "rfi_number", "inspector_id", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"],
+                # Block everything except status from being edited
+                disabled=["id", "inspection_no", "po_number", "rfi_number", "inspector_id", "location", "start_date", "end_date", "client_name", "vendor_name", "Revenue", "Profit", "Total"],
                 use_container_width=True,
                 hide_index=True,
                 key="inventory_editor"
@@ -467,41 +457,31 @@ elif page == "Inspection Inventory":
             if st.button("💾 Save Status Changes", type="primary"):
                 changes_made = False
                 for index, row in edited_df.iterrows():
-                    original_status = df.loc[index, 'status']
-                    new_status = row['status']
-                    
-                    if original_status != new_status:
+                    if df.loc[index, 'status'] != row['status']:
                         try:
-                            supabase.table("Inspections").update({"status": new_status}).eq("id", row['id']).execute()
+                            supabase.table("inspections").update({"status": row['status']}).eq("id", row['id']).execute()
                             changes_made = True
                         except Exception as e:
-                            st.error(f"❌ Error updating {row['Inspection_no']}: {e}")
+                            st.error(f"❌ Error updating {row['inspection_no']}: {e}")
                 
                 if changes_made:
                     st.session_state['temp_success'] = "✅ Database updated successfully!"
                     st.rerun()
-                else:
-                    st.info("No status changes were detected.")
 
-            # --- NEW UPGRADE: DELETE INSPECTION ---
+            # --- DELETE INSPECTION ---
             st.divider()
             with st.expander("🗑️ Danger Zone: Delete an Inspection"):
                 st.warning("Warning: Deleting an inspection is permanent and cannot be undone.")
-                
-                # Create a dictionary linking a readable string to the database ID
-                delete_options = {f"{row['Inspection_no']} - {row['client_name']} (PO: {row['po_number']})": row['id'] for row in inv_res.data}
+                delete_options = {f"{row['inspection_no']} - {row['client_name']} (PO: {row['po_number']})": row['id'] for row in inv_res.data}
                 
                 with st.form("delete_inspection_form"):
                     selected_to_delete = st.selectbox("Select Inspection to Permanently Delete:", options=list(delete_options.keys()))
-                    
-                    # We use a red-styled button by combining st.markdown with Streamlit's native type
                     delete_btn = st.form_submit_button("🚨 Permanently Delete Record")
                     
                     if delete_btn:
                         delete_id = delete_options[selected_to_delete]
                         try:
-                            supabase.table("Inspections").delete().eq("id", delete_id).execute()
-                            # Use session state to show success message after reload
+                            supabase.table("inspections").delete().eq("id", delete_id).execute()
                             st.session_state['temp_success'] = f"✅ Successfully deleted {selected_to_delete.split(' - ')[0]}!"
                             st.rerun()
                         except Exception as e:
